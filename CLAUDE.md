@@ -13,7 +13,7 @@ Either user can add a task, and the task is assigned to the other person automat
 - **Frontend:** Vite + React + TypeScript, built as a PWA (manifest + service worker via `vite-plugin-pwa`)
 - **Styling:** Tailwind CSS. The root has `dir="rtl"` and `lang="ar"`. Use logical properties (`ms-`/`me-`, `ps-`/`pe-`, `start`/`end`), not left/right.
 - **Font:** Dubai Font, loaded with `@font-face` from `public/fonts/Dubai-Regular.otf`. It is the only UI font. Fall back to `system-ui, sans-serif`.
-- **Charts:** Chart.js (bar chart of average days to close)
+- **Charts:** plain HTML/CSS bars (only two bars — no chart library needed)
 - **Backend:** Supabase (Postgres + Auth + RLS + Edge Functions + `pg_cron`)
 - **Push:** Web Push (VAPID) sent from Supabase Edge Functions
 - **Hosting:** Netlify (static build, SPA redirect)
@@ -36,8 +36,7 @@ Either user can add a task, and the task is assigned to the other person automat
 5. **No deadlines, no priorities.** Do not add them.
 6. Only two users exist. Do not build sign-up flows, teams or roles beyond these two.
 
-## Build phases
-Phases are delivered one at a time. Wait for approval before starting the next.
+## Build phases (all shipped)
 0. Repo scaffold, tooling, RTL + Dubai font shell, Netlify deploy
 1. Supabase schema, RLS, RPCs, audit log, plus RLS tests
 2. Auth (two users) + task list + add task
@@ -49,7 +48,24 @@ Phases are delivered one at a time. Wait for approval before starting the next.
 8. Scheduled push: daily reminder + Friday report
 9. Polish, accessibility, QA, release
 
+## Layout
+- `src/` — React app. `src/lib/supabase.ts` holds the only write path (RPC calls).
+- `src/sw.ts` — service worker: precache + push + notification click.
+- `supabase/migrations/` — schema, RLS, RPCs, triggers, cron. The single source of permission truth.
+- `supabase/functions/notify/` — Edge Function that sends every Web Push (events, daily, Friday, test).
+- `supabase/functions/_shared/` — day counter, shame levels, roast lines. Imported by BOTH the app (`@shared/*`) and the Edge Function, so keep it dependency-free and Deno-compatible (`.ts` imports).
+- `supabase/tests/rls_test.sql` — permission tests (run in the SQL editor; rolls back).
+- `tests/` — Vitest unit tests for the shared logic and stats.
+
+## How things connect
+- Every `task_events` insert fires `private.on_task_event` → `pg_net` POST to the `notify` function with `x-webhook-secret`.
+- `pg_cron`: `tolys-daily-reminder` 06:00 UTC (09:00 Riyadh), `tolys-friday-report` Fri 15:00 UTC (18:00 Riyadh).
+- Secrets (VAPID private key, webhook secret) live in `private.config`, readable only by `service_role` via `get_service_config()`. Never commit them.
+- Sign-ups are blocked by a trigger on `auth.users` (allow-list in `private.allowed_emails`). The two accounts use internal emails `mohammad@example.com` / `bandoor@example.com`; the login screen picks the person.
+- Public config (Supabase URL, publishable key, VAPID public key) is committed in `src/lib/config.ts`; `VITE_*` env vars override it.
+
 ## Conventions
 - Keep schema changes in `supabase/migrations/` as SQL. Never change the DB by hand without a migration.
-- Every RLS rule gets a test that runs as each user and checks both the allowed and the denied path.
-- Day boundaries and the Friday report use the `Asia/Riyadh` timezone (to be confirmed).
+- Every RLS rule gets a test in `supabase/tests/rls_test.sql` (allowed and denied path).
+- Day boundaries and the Friday report use `Asia/Riyadh`.
+- Before pushing: `npm test` and `npm run build` (includes typecheck).

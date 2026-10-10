@@ -1,0 +1,126 @@
+@import 'tailwindcss';
+
+@font-face {
+  font-family: 'Dubai';
+  src: url('/fonts/Dubai-Regular.otf') format('opentype');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  --bg: #f7f3ec;
+  --surface: #ffffff;
+  --surface-2: #f1ebe1;
+  --ink: #2a2420;
+  --muted: #74685e;
+  --line: #e6ddd0;
+  --brand: #0f766e;
+  --brand-ink: #ffffff;
+  --brand-soft: #d9efec;
+  --danger: #c62828;
+  --danger-soft: #fde5e3;
+  --warn: #9a5b00;
+  --warn-soft: #fdf0d2;
+  --ok: #1b7a3a;
+  --ok-soft: #dff3e5;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #161311;
+    --surface: #221d1a;
+    --surface-2: #2c2622;
+    --ink: #f3ede6;
+    --muted: #ab9f94;
+    --line: #3a332d;
+    --brand: #2bb8a8;
+    --brand-ink: #0c1f1d;
+    --brand-soft: #173a36;
+    --danger: #ff7a70;
+    --danger-soft: #45201d;
+    --warn: #f5b84a;
+    --warn-soft: #3d2f14;
+    --ok: #5fd08a;
+    --ok-soft: #1a3524;
+    color-scheme: dark;
+  }
+}
+
+@theme inline {
+  --font-sans: 'Dubai', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-brand: var(--brand);
+  --color-brand-ink: var(--brand-ink);
+  --color-brand-soft: var(--brand-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-ok: var(--ok);
+  --color-ok-soft: var(--ok-soft);
+}
+
+html,
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none;
+}
+
+input,
+button,
+textarea {
+  font: inherit;
+}
+
+/* Dates and numbers inside Arabic text keep their own direction. */
+.num {
+  unicode-bidi: isolate;
+  font-variant-numeric: tabular-nums;
+}
+
+.pt-safe {
+  padding-top: max(env(safe-area-inset-top), 0.75rem);
+}
+.pb-safe {
+  padding-bottom: max(env(safe-area-inset-bottom), 0.5rem);
+}
+
+@keyframes sheet-in {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.animate-sheet {
+  animation: sheet-in 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.animate-fade {
+  animation: fade-in 180ms ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-sheet,
+  .animate-fade {
+    animation: none;
+  }
+}
