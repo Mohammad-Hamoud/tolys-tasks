@@ -1,6 +1,6 @@
 # CLAUDE.md — Toly's Tasks
 
-App display name: **Toly's Tasks**. Repo: `tolys-tasks`. The full product spec, in Arabic, is in [`SPEC.md`](./SPEC.md). Treat it as the source of truth and read it before making changes.
+App display name: **Toly's Tasks**. Repo: `tolys-tasks`. Live: https://tolys-tasks.netlify.app (Netlify auto-deploys `main`). Supabase project ref: `cridxqxsyggxogwoawzc`. The full product spec, in Arabic, is in [`SPEC.md`](./SPEC.md). Treat it as the source of truth and read it before making changes.
 
 ## What it is
 A small Arabic PWA (right-to-left) for shared household tasks between exactly two users:
