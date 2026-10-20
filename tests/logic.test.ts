@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { daysBetween, daysLabel, isBackdated, riyadhDate, taskDays } from '../supabase/functions/_shared/days.ts';
+import { clockRestarted, daysBetween, daysLabel, isBackdated, riyadhDate, taskDays, taskHolder } from '../supabase/functions/_shared/days.ts';
 import { shameLevel, shameText } from '../supabase/functions/_shared/shame.ts';
 import { roast } from '../supabase/functions/_shared/roasts.ts';
 import { computeStats } from '../src/lib/stats.ts';
@@ -38,6 +38,24 @@ describe('days', () => {
     expect(daysLabel(2)).toBe('يومين');
     expect(daysLabel(5)).toBe('5 أيام');
     expect(daysLabel(14)).toBe('14 يوم');
+  });
+});
+
+describe('info requests (طلب معلومات إضافية)', () => {
+  const now = new Date('2026-10-20T09:00:00Z');
+  const base2 = { requested_at: '2026-10-01', created_at: '2026-10-01T08:00:00Z', completed_at: null, done_claimed_at: null };
+
+  it('charges the wait to the requester, from the moment of the question', () => {
+    const t = { ...base2, status: 'needs_info', clock_started_at: '2026-10-01', info_requested_at: '2026-10-17T10:00:00Z' };
+    expect(taskDays(t, now)).toBe(3);
+    expect(taskHolder({ status: 'needs_info', created_by: 'm', assignee: 'b' })).toBe('m');
+  });
+
+  it('restarts the assignee clock after the answer', () => {
+    const t = { ...base2, status: 'open', clock_started_at: '2026-10-18', info_requested_at: null };
+    expect(taskDays(t, now)).toBe(2);
+    expect(clockRestarted(t)).toBe(true);
+    expect(taskHolder({ status: 'open', created_by: 'm', assignee: 'b' })).toBe('b');
   });
 });
 
@@ -93,6 +111,8 @@ describe('stats', () => {
     requested_at: '2026-10-01',
     created_at: '2026-10-01T08:00:00Z',
     status: 'open',
+    info_requested_at: null,
+    info_question: null,
     done_claimed_at: null,
     completed_at: null,
     closed_by: null,
@@ -100,6 +120,7 @@ describe('stats', () => {
     archived_by: null,
     archive_reason: null,
     ...over,
+    clock_started_at: over.clock_started_at ?? over.requested_at ?? '2026-10-01',
   });
 
   it('averages closing days, finds the slower one, and ignores archived tasks', () => {
@@ -117,5 +138,15 @@ describe('stats', () => {
     expect(s.gap).toBe(5);
     expect(s.wall[0].days).toBe(39);
     expect(s.people.find((p) => p.profile.id === 'm')!.open).toBe(1);
+  });
+
+  it('counts a task waiting for info against the requester', () => {
+    const tasks = [task({ assignee: 'b', created_by: 'm', status: 'needs_info', info_requested_at: '2026-10-05T08:00:00Z', info_question: '?' })];
+    const s = computeStats(tasks, profiles, now);
+    const mo = s.people.find((p) => p.profile.id === 'm')!;
+    expect(mo.open).toBe(1);
+    expect(mo.awaitingAnswer).toBe(1);
+    expect(s.people.find((p) => p.profile.id === 'b')!.open).toBe(0);
+    expect(s.wall[0].days).toBe(5);
   });
 });

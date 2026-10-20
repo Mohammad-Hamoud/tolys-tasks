@@ -6,7 +6,7 @@
 //   - the app, for a "test" notification to the signed-in user (Authorization: Bearer <user JWT>).
 import { createClient } from 'npm:@supabase/supabase-js@2.117.3';
 import webpush from 'npm:web-push@3.6.7';
-import { daysLabel, isBackdated, riyadhDate, taskDays } from '../_shared/days.ts';
+import { daysLabel, isBackdated, riyadhDate, taskDays, taskHolder } from '../_shared/days.ts';
 import { shameText } from '../_shared/shame.ts';
 import { roast, type Person } from '../_shared/roasts.ts';
 
@@ -21,8 +21,11 @@ interface Task {
   created_by: string;
   assignee: string;
   requested_at: string;
+  clock_started_at: string;
   created_at: string;
-  status: 'open' | 'pending' | 'done';
+  status: 'open' | 'pending' | 'needs_info' | 'done';
+  info_requested_at: string | null;
+  info_question: string | null;
   done_claimed_at: string | null;
   completed_at: string | null;
   archived_at: string | null;
@@ -137,6 +140,20 @@ async function handleEvent(eventId: number) {
         url,
         tag,
       });
+    case 'info_requested':
+      return sendTo([t.created_by], {
+        title: `❓ ${assignee.display_name} ${g(assignee, 'يحتاج', 'تحتاج')} توضيح`,
+        body: `${t.title} — «${ev.note}»\nالكورة في ملعبك، والعداد يمشي عليك لين ترد ⚽`,
+        url,
+        tag,
+      });
+    case 'info_provided':
+      return sendTo([t.assignee], {
+        title: `↩️ ${creator.display_name} ${g(creator, 'رد', 'ردت')} على سؤالك`,
+        body: `${t.title} — «${ev.note}»\nالعداد بدأ من جديد ⏱️`,
+        url,
+        tag,
+      });
     default:
       return { skipped: ev.kind };
   }
@@ -154,16 +171,18 @@ async function handleDaily() {
   const tasks = await activeTasks();
   const out: Record<string, unknown> = {};
   for (const p of list) {
+    // Open tasks on this person's plate, including questions waiting for their answer.
     const mine = tasks
-      .filter((t) => t.assignee === p.id && t.status === 'open')
-      .sort((a, b) => a.requested_at.localeCompare(b.requested_at) || a.created_at.localeCompare(b.created_at));
+      .filter((t) => taskHolder(t) === p.id && (t.status === 'open' || t.status === 'needs_info'))
+      .sort((a, b) => taskDays(b) - taskDays(a) || a.created_at.localeCompare(b.created_at));
     const pendingApprovals = p.id === admin.id ? tasks.filter((t) => t.status === 'pending').length : 0;
     if (!mine.length && !pendingApprovals) continue;
 
     const lines: string[] = [];
     if (mine.length) {
       const d = taskDays(mine[0]);
-      lines.push(`${mine[0].title} — ${daysLabel(d)} ${shameText(d)}`);
+      const q = mine[0].status === 'needs_info' ? ' (❓ ينتظر توضيحك)' : '';
+      lines.push(`${mine[0].title}${q} — ${daysLabel(d)} ${shameText(d)}`);
       if (mine.length > 1) lines.push(`وعندك ${mine.length - 1} غيرها تنتظر`);
     }
     if (pendingApprovals) lines.push(`✋ ${pendingApprovals} بانتظار اعتمادك`);
@@ -184,7 +203,7 @@ async function handleWeekly() {
   const weekAgo = Date.now() - 7 * 86_400_000;
 
   const stats = list.map((p) => {
-    const open = tasks.filter((t) => t.assignee === p.id && t.status !== 'done');
+    const open = tasks.filter((t) => taskHolder(t) === p.id && t.status !== 'done');
     const closed = tasks.filter((t) => t.assignee === p.id && t.status === 'done' && Date.parse(t.completed_at!) >= weekAgo);
     // Week score: closed this week + still-open tasks at their current age (hoarding doesn't help).
     const counted = [...closed, ...open].map((t) => taskDays(t));

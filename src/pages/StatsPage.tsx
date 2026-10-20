@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { daysUnit, riyadhDate } from '@shared/days.ts';
+import { daysUnit, riyadhDate, taskHolder } from '@shared/days.ts';
 import { roast } from '@shared/roasts.ts';
 import { useApp } from '../lib/app';
 import { computeStats, type PersonStats } from '../lib/stats';
@@ -62,7 +62,12 @@ export function StatsPage() {
           <Card key={p.profile.id}>
             <p className="text-[14px] font-bold text-muted">{p.profile.display_name}</p>
             <p className="num mt-1 text-3xl font-bold">{p.open}</p>
-            <p className="text-[13px] text-muted">مهام مفتوحة</p>
+            <p className="text-[13px] text-muted">
+              مهام مفتوحة
+              {p.awaitingAnswer > 0 && (
+                <span className="num block font-bold text-brand">❓ منها {p.awaitingAnswer} تنتظر توضيح</span>
+              )}
+            </p>
             <div className="my-3 h-px bg-line" />
             <p className="num text-2xl font-bold">{p.rate30 === null ? '—' : pct(p.rate30)}</p>
             <p className="text-[13px] text-muted">
@@ -99,7 +104,8 @@ export function StatsPage() {
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-bold">{task.title}</p>
                     <p className="text-[13px] text-muted">
-                      على {name(task.assignee)} · من <span className="num">{fmtDay(task.requested_at)}</span>
+                      على {name(taskHolder(task))}
+                      {task.status === 'needs_info' ? ' · ❓ بانتظار الرد' : ''} · من <span className="num">{fmtDay(task.requested_at)}</span>
                     </p>
                     <div className="mt-1">
                       <ShameBadge days={days} />

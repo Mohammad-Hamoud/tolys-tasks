@@ -26,12 +26,15 @@ Either user can add a task, and the task is assigned to the other person automat
    - Wife: may only mark *her own* open tasks as `سوّيتها ✋` → status `pending_confirmation`.
    - Mohammad closes his own tasks directly (no confirmation step).
    - `requested_at` can be set only on insert. It is immutable afterwards.
+   - Either person: "أحتاج توضيح ❓" (`request_info`) on an open task assigned to them → status `needs_info`; only the requester answers (`provide_info`).
 3. **Nothing is ever hard-deleted.** Deletion is a soft archive (`archived_at`, `archived_by`), and every state change is written to an append-only `task_events` log. Revoke `DELETE` on all tables.
 4. **Day counter semantics** (see SPEC.md "العداد"):
    - days = `requested_at` → completion moment (or now, if open)
    - wife's tasks: completion moment = `done_claimed_at`, and it counts only after Mohammad approves
    - rejection clears `done_claimed_at`, and counting continues from `requested_at`
    - shame level = `floor(days / 5)`
+   - the assignee's clock starts at `clock_started_at` (= `requested_at`, or the day an info request was answered: "يعد من جديد")
+   - `needs_info`: the ball (`task_holder`) is with the requester and days count from `info_requested_at` against them, not the assignee
    - "📅 تاريخ معدّل" tag shows when `requested_at::date <> created_at::date`
 5. **No deadlines, no priorities.** Do not add them.
 6. Only two users exist. Do not build sign-up flows, teams or roles beyond these two.

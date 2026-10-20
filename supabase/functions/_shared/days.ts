@@ -27,15 +27,33 @@ export interface CountableTask {
   created_at: string;
   completed_at: string | null;
   done_claimed_at: string | null;
+  status?: string;
+  /** Where the assignee's clock starts: the request date, or the day info was provided. */
+  clock_started_at?: string;
+  info_requested_at?: string | null;
 }
 
 /**
- * Days from the request date until the completion moment.
- * Done → completed_at. Pending → frozen at the "سوّيتها" moment. Open → now.
+ * Days on the clock of whoever holds the ball. Must match public.task_days().
+ * Waiting for info → since the question was asked (charged to the requester).
+ * Otherwise → from clock_started_at until done / the "سوّيتها" moment / now.
  */
 export function taskDays(t: CountableTask, now: Date = new Date()): number {
+  if (t.status === 'needs_info' && t.info_requested_at) {
+    return Math.max(0, daysBetween(riyadhDate(t.info_requested_at), riyadhDate(now)));
+  }
   const end = t.completed_at ?? t.done_claimed_at ?? now;
-  return Math.max(0, daysBetween(t.requested_at, riyadhDate(end)));
+  return Math.max(0, daysBetween(t.clock_started_at ?? t.requested_at, riyadhDate(end)));
+}
+
+/** Who holds the ball: the requester while waiting for info, otherwise the assignee. */
+export function taskHolder(t: { status: string; created_by: string; assignee: string }): string {
+  return t.status === 'needs_info' ? t.created_by : t.assignee;
+}
+
+/** True when the clock was restarted after an info request ("🔄 بدأ العد من جديد"). */
+export function clockRestarted(t: Pick<CountableTask, 'requested_at' | 'clock_started_at'>): boolean {
+  return !!t.clock_started_at && t.clock_started_at !== t.requested_at;
 }
 
 /** True when the request date differs from the actual day the task was added ("📅 تاريخ معدّل"). */

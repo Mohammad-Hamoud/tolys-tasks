@@ -1,4 +1,4 @@
-import { daysLabel, isBackdated, taskDays } from '@shared/days.ts';
+import { clockRestarted, daysLabel, isBackdated, taskDays } from '@shared/days.ts';
 import { shameText } from '@shared/shame.ts';
 import { useApp } from '../lib/app';
 import { fmtDay, fmtMoment } from '../lib/format';
@@ -13,6 +13,8 @@ export const EVENT_TEXT: Record<EventKind, { icon: string; text: string }> = {
   rejected: { icon: '❌', text: 'رفض الإنجاز' },
   archived: { icon: '🗑️', text: 'حذف المهمة (أرشفة)' },
   restored: { icon: '♻️', text: 'استرجع المهمة' },
+  info_requested: { icon: '❓', text: 'طلب توضيح' },
+  info_provided: { icon: '↩️', text: 'رد بالتوضيح' },
 };
 
 export function TaskDetail({ id, onClose }: { id: number; onClose: () => void }) {
@@ -48,7 +50,11 @@ export function TaskDetail({ id, onClose }: { id: number; onClose: () => void })
                 <dt className="text-muted">العداد</dt>
                 <dd className="font-bold">
                   {daysLabel(taskDays(task))} · {shameText(taskDays(task))}
+                  {task.status === 'needs_info' && ` · على ${name(task.created_by)} لين يرد بالتوضيح`}
                   {isBackdated(task) && ' · 📅 تاريخ معدّل'}
+                  {clockRestarted(task) && task.status !== 'needs_info' && (
+                    <span className="num"> · 🔄 العد من جديد من {fmtDay(task.clock_started_at)}</span>
+                  )}
                 </dd>
               </div>
             </dl>
@@ -62,7 +68,7 @@ export function TaskDetail({ id, onClose }: { id: number; onClose: () => void })
                       <span aria-hidden>{EVENT_TEXT[e.kind].icon}</span>
                       <div className="min-w-0 flex-1">
                         <p className="font-bold">
-                          {name(e.actor)} {actor?.role === 'member' ? EVENT_TEXT[e.kind].text.replace(/^(أضاف|ضغط|أغلق|رفض|حذف|استرجع)/, '$1ت') : EVENT_TEXT[e.kind].text}
+                          {name(e.actor)} {actor?.role === 'member' ? EVENT_TEXT[e.kind].text.replace(/^(أضاف|ضغط|أغلق|رفض|حذف|استرجع|طلب|رد)/, '$1ت') : EVENT_TEXT[e.kind].text}
                         </p>
                         {e.note && <p className="text-muted">«{e.note}»</p>}
                         <p className="num text-[12px] text-muted">

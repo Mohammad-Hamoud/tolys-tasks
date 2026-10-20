@@ -51,7 +51,7 @@ export function ArchivePage() {
                 <span className="min-w-0 flex-1">
                   <span className="font-bold">{name(e.actor)}</span>{' '}
                   {fem(e.actor)
-                    ? EVENT_TEXT[e.kind].text.replace(/^(أضاف|ضغط|أغلق|رفض|حذف|استرجع)/, '$1ت')
+                    ? EVENT_TEXT[e.kind].text.replace(/^(أضاف|ضغط|أغلق|رفض|حذف|استرجع|طلب|رد)/, '$1ت')
                     : EVENT_TEXT[e.kind].text}
                   : «{titleOf(e.task_id)}»
                   <span className="num block text-[12px] text-muted">{fmtMoment(e.created_at)}</span>

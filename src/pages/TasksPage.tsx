@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { daysBetween, riyadhDate, taskDays } from '@shared/days.ts';
+import { daysBetween, riyadhDate, taskDays, taskHolder } from '@shared/days.ts';
 import { useApp } from '../lib/app';
 import { getPushState, isIOS, isStandalone, type PushState } from '../lib/push';
 import { navigate } from '../lib/router';
@@ -24,8 +24,9 @@ export function TasksPage() {
   }, []);
 
   const active = useMemo(() => tasks.filter((t) => !t.archived_at), [tasks]);
-  const mineOpen = active.filter((t) => t.assignee === me.id && t.status !== 'done');
-  const theirsOpen = active.filter((t) => t.assignee === other.id && t.status !== 'done');
+  // Tabs follow the ball: a task waiting for info sits with whoever has to answer.
+  const mineOpen = active.filter((t) => taskHolder(t) === me.id && t.status !== 'done');
+  const theirsOpen = active.filter((t) => taskHolder(t) === other.id && t.status !== 'done');
   const today = riyadhDate();
   const doneRecent = active
     .filter((t) => t.status === 'done' && daysBetween(riyadhDate(t.completed_at!), today) <= 30)
@@ -38,6 +39,7 @@ export function TasksPage() {
   }, [mineOpen.length]);
 
   const list = tab === 'mine' ? mineOpen : tab === 'theirs' ? theirsOpen : doneRecent;
+  const waiting = list.filter((t) => t.status === 'needs_info').sort(oldestFirst);
   const pending = list.filter((t) => t.status === 'pending').sort(oldestFirst);
   const open = list.filter((t) => t.status === 'open').sort(oldestFirst);
 
@@ -77,6 +79,17 @@ export function TasksPage() {
         ))}
       </div>
 
+      {waiting.length > 0 && (
+        <section className="space-y-2">
+          <h2 className="px-1 text-[14px] font-bold text-brand">
+            ❓ {tab === 'mine' ? 'ينتظرون توضيحك' : `بانتظار توضيح ${other.display_name}`}
+          </h2>
+          {waiting.map((t) => (
+            <TaskCard key={t.id} task={t} actions={actions} />
+          ))}
+        </section>
+      )}
+
       {pending.length > 0 && (
         <section className="space-y-2">
           <h2 className="px-1 text-[14px] font-bold text-warn">
@@ -89,7 +102,7 @@ export function TasksPage() {
       )}
 
       <section className="space-y-2">
-        {pending.length > 0 && open.length > 0 && <h2 className="px-1 text-[14px] font-bold text-muted">مفتوحة</h2>}
+        {(pending.length > 0 || waiting.length > 0) && open.length > 0 && <h2 className="px-1 text-[14px] font-bold text-muted">مفتوحة</h2>}
         {open.map((t) => (
           <TaskCard key={t.id} task={t} actions={actions} />
         ))}

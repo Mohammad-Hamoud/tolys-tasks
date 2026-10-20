@@ -1,6 +1,14 @@
 export type Role = 'admin' | 'member';
-export type TaskStatus = 'open' | 'pending' | 'done';
-export type EventKind = 'created' | 'claimed' | 'closed' | 'rejected' | 'archived' | 'restored';
+export type TaskStatus = 'open' | 'pending' | 'needs_info' | 'done';
+export type EventKind =
+  | 'created'
+  | 'claimed'
+  | 'closed'
+  | 'rejected'
+  | 'archived'
+  | 'restored'
+  | 'info_requested'
+  | 'info_provided';
 
 export interface Profile {
   id: string;
@@ -14,8 +22,11 @@ export interface Task {
   created_by: string;
   assignee: string;
   requested_at: string;
+  clock_started_at: string;
   created_at: string;
   status: TaskStatus;
+  info_requested_at: string | null;
+  info_question: string | null;
   done_claimed_at: string | null;
   completed_at: string | null;
   closed_by: string | null;

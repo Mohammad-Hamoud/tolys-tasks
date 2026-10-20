@@ -21,6 +21,8 @@ export const api = {
   rejectDone: (id: number, note: string | null) => call<Task>('reject_done', { p_task_id: id, p_note: note }),
   archiveTask: (id: number, reason: string | null) => call<Task>('archive_task', { p_task_id: id, p_reason: reason }),
   restoreTask: (id: number) => call<Task>('restore_task', { p_task_id: id }),
+  requestInfo: (id: number, question: string) => call<Task>('request_info', { p_task_id: id, p_question: question }),
+  provideInfo: (id: number, answer: string) => call<Task>('provide_info', { p_task_id: id, p_answer: answer }),
 };
 
 export function friendlyError(message: string): string {

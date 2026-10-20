@@ -105,6 +105,29 @@ begin
   select string_agg(kind, ',' order by id) into kinds from public.task_events where task_id = t1.id;
   perform pg_temp.expect('audit log complete', kinds = 'created,claimed,rejected,claimed,closed');
 
+  -- طلب معلومات إضافية: assignee bounces, requester answers, the clock restarts
+  perform pg_temp.as_user('mohammad@example.com');
+  t1 := public.add_task('اختبار: توضيح', public.riyadh_today() - 6);
+  perform pg_temp.expect_denied('requester cannot ask info on own request', format($q$ select public.request_info(%s, 'x') $q$, t1.id));
+  perform pg_temp.as_user('bandoor@example.com');
+  perform pg_temp.expect_denied('info request needs a question', format($q$ select public.request_info(%s, '  ') $q$, t1.id));
+  r := public.request_info(t1.id, 'أي ستارة؟');
+  perform pg_temp.expect('assignee asks → needs_info, ball with requester', r.status = 'needs_info' and public.task_holder(r) = mo);
+  perform pg_temp.expect('requester clock starts at zero', public.task_days(r) = 0);
+  perform pg_temp.expect_denied('assignee cannot answer own question', format($q$ select public.provide_info(%s, 'x') $q$, t1.id));
+  perform pg_temp.expect_denied('cannot claim while waiting for info', format('select public.claim_done(%s)', t1.id));
+  perform pg_temp.as_user('mohammad@example.com');
+  perform pg_temp.expect_denied('cannot close while waiting for info', format('select public.close_task(%s)', t1.id));
+  r := public.provide_info(t1.id, 'الرمادية');
+  perform pg_temp.expect('answer → open, back to assignee, clock restarted',
+    r.status = 'open' and public.task_holder(r) = ba and r.clock_started_at = public.riyadh_today()
+    and r.requested_at = public.riyadh_today() - 6 and public.task_days(r) = 0);
+  select string_agg(kind, ',' order by id) into kinds from public.task_events where task_id = t1.id;
+  perform pg_temp.expect('info round logged', kinds = 'created,info_requested,info_provided');
+  perform pg_temp.as_user('bandoor@example.com');
+  perform pg_temp.expect_denied('member cannot rewind the clock',
+    format($q$ update public.tasks set clock_started_at = requested_at where id = %s $q$, t1.id));
+
   -- Push subscriptions are private
   perform pg_temp.as_user('bandoor@example.com');
   perform public.save_push_subscription('https://example.com/rls-test', 'x', 'y');
