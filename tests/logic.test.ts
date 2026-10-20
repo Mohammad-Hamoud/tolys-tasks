@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { clockRestarted, daysBetween, daysLabel, isBackdated, riyadhDate, taskDays, taskHolder } from '../supabase/functions/_shared/days.ts';
+import { frozenDays, pausedDays, daysBetween, daysLabel, isBackdated, riyadhDate, taskDays, taskHolder } from '../supabase/functions/_shared/days.ts';
 import { shameLevel, shameText } from '../supabase/functions/_shared/shame.ts';
 import { roast } from '../supabase/functions/_shared/roasts.ts';
 import { computeStats } from '../src/lib/stats.ts';
@@ -51,10 +51,17 @@ describe('info requests (طلب معلومات إضافية)', () => {
     expect(taskHolder({ status: 'needs_info', created_by: 'm', assignee: 'b' })).toBe('m');
   });
 
-  it('restarts the assignee clock after the answer', () => {
-    const t = { ...base2, status: 'open', clock_started_at: '2026-10-18', info_requested_at: null };
-    expect(taskDays(t, now)).toBe(2);
-    expect(clockRestarted(t)).toBe(true);
+  it('freezes the assignee clock while waiting', () => {
+    // Asked on Oct 4 (3 days in), still waiting on Oct 20.
+    const t = { ...base2, status: 'needs_info', clock_started_at: '2026-10-01', info_requested_at: '2026-10-04T10:00:00Z' };
+    expect(frozenDays(t)).toBe(3);
+  });
+
+  it('resumes from the frozen count after the answer', () => {
+    // Waited 5 days in total, so the clock start moved from Oct 1 to Oct 6.
+    const t = { ...base2, status: 'open', clock_started_at: '2026-10-06', info_requested_at: null };
+    expect(taskDays(t, now)).toBe(14);
+    expect(pausedDays(t)).toBe(5);
     expect(taskHolder({ status: 'open', created_by: 'm', assignee: 'b' })).toBe('b');
   });
 });

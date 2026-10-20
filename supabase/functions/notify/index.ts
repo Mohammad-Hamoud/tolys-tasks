@@ -143,14 +143,14 @@ async function handleEvent(eventId: number) {
     case 'info_requested':
       return sendTo([t.created_by], {
         title: `❓ ${assignee.display_name} ${g(assignee, 'يحتاج', 'تحتاج')} توضيح`,
-        body: `${t.title} — «${ev.note}»\nالكورة في ملعبك، والعداد يمشي عليك لين ترد ⚽`,
+        body: `${t.title} — «${ev.note}»\nالكورة في ملعبك، والعداد يمشي عليك لين ترد ⚽ (عدّاد ${assignee.display_name} واقف عند ${daysLabel(ev.days)})`,
         url,
         tag,
       });
     case 'info_provided':
       return sendTo([t.assignee], {
         title: `↩️ ${creator.display_name} ${g(creator, 'رد', 'ردت')} على سؤالك`,
-        body: `${t.title} — «${ev.note}»\nالعداد بدأ من جديد ⏱️`,
+        body: `${t.title} — «${ev.note}»\nالعداد كمّل من حيث وقف ⏱️ — تقدر تطلب توضيح ثاني إذا ما وضح`,
         url,
         tag,
       });

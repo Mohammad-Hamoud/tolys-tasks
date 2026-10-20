@@ -105,7 +105,7 @@ begin
   select string_agg(kind, ',' order by id) into kinds from public.task_events where task_id = t1.id;
   perform pg_temp.expect('audit log complete', kinds = 'created,claimed,rejected,claimed,closed');
 
-  -- طلب معلومات إضافية: assignee bounces, requester answers, the clock restarts
+  -- طلب معلومات إضافية: the assignee's clock freezes while the requester holds the ball
   perform pg_temp.as_user('mohammad@example.com');
   t1 := public.add_task('اختبار: توضيح', public.riyadh_today() - 6);
   perform pg_temp.expect_denied('requester cannot ask info on own request', format($q$ select public.request_info(%s, 'x') $q$, t1.id));
@@ -118,12 +118,26 @@ begin
   perform pg_temp.expect_denied('cannot claim while waiting for info', format('select public.claim_done(%s)', t1.id));
   perform pg_temp.as_user('mohammad@example.com');
   perform pg_temp.expect_denied('cannot close while waiting for info', format('select public.close_task(%s)', t1.id));
+  -- Pretend the question was asked 3 days ago (assignee had 3 days then) and sat unanswered.
+  perform set_config('role', 'postgres', true);
+  update public.tasks set info_requested_at = now() - interval '3 days' where id = t1.id;
+  perform pg_temp.as_user('mohammad@example.com');
+  select * into r from public.tasks where id = t1.id;
+  perform pg_temp.expect('wait is charged to the requester', public.task_days(r) = 3);
   r := public.provide_info(t1.id, 'الرمادية');
-  perform pg_temp.expect('answer → open, back to assignee, clock restarted',
-    r.status = 'open' and public.task_holder(r) = ba and r.clock_started_at = public.riyadh_today()
-    and r.requested_at = public.riyadh_today() - 6 and public.task_days(r) = 0);
+  perform pg_temp.expect('answer → open, back to assignee, clock resumes (frozen 3 days)',
+    r.status = 'open' and public.task_holder(r) = ba and r.requested_at = public.riyadh_today() - 6
+    and r.clock_started_at = public.riyadh_today() - 3 and public.task_days(r) = 3);
+
+  -- A second round on the same task (the answer wasn't clear)
+  perform pg_temp.as_user('bandoor@example.com');
+  r := public.request_info(t1.id, 'الرمادية الفاتحة ولا الغامقة؟');
+  perform pg_temp.expect('can ask for info again after an answer', r.status = 'needs_info');
+  perform pg_temp.as_user('mohammad@example.com');
+  r := public.provide_info(t1.id, 'الفاتحة');
+  perform pg_temp.expect('second round keeps the frozen count', r.status = 'open' and public.task_days(r) = 3);
   select string_agg(kind, ',' order by id) into kinds from public.task_events where task_id = t1.id;
-  perform pg_temp.expect('info round logged', kinds = 'created,info_requested,info_provided');
+  perform pg_temp.expect('info rounds logged', kinds = 'created,info_requested,info_provided,info_requested,info_provided');
   perform pg_temp.as_user('bandoor@example.com');
   perform pg_temp.expect_denied('member cannot rewind the clock',
     format($q$ update public.tasks set clock_started_at = requested_at where id = %s $q$, t1.id));

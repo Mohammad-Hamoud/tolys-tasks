@@ -28,7 +28,7 @@ export interface CountableTask {
   completed_at: string | null;
   done_claimed_at: string | null;
   status?: string;
-  /** Where the assignee's clock starts: the request date, or the day info was provided. */
+  /** Where the assignee's clock starts: the request date, pushed forward by every day spent waiting for info. */
   clock_started_at?: string;
   info_requested_at?: string | null;
 }
@@ -51,9 +51,15 @@ export function taskHolder(t: { status: string; created_by: string; assignee: st
   return t.status === 'needs_info' ? t.created_by : t.assignee;
 }
 
-/** True when the clock was restarted after an info request ("🔄 بدأ العد من جديد"). */
-export function clockRestarted(t: Pick<CountableTask, 'requested_at' | 'clock_started_at'>): boolean {
-  return !!t.clock_started_at && t.clock_started_at !== t.requested_at;
+/** Days the assignee's clock was paused waiting for info (all rounds so far). */
+export function pausedDays(t: Pick<CountableTask, 'requested_at' | 'clock_started_at'>): number {
+  return t.clock_started_at ? Math.max(0, daysBetween(t.requested_at, t.clock_started_at)) : 0;
+}
+
+/** While waiting for info: the assignee's count, frozen at the moment they asked. */
+export function frozenDays(t: CountableTask): number {
+  if (t.status !== 'needs_info' || !t.info_requested_at) return 0;
+  return Math.max(0, daysBetween(t.clock_started_at ?? t.requested_at, riyadhDate(t.info_requested_at)));
 }
 
 /** True when the request date differs from the actual day the task was added ("📅 تاريخ معدّل"). */

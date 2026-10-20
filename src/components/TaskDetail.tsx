@@ -1,4 +1,4 @@
-import { clockRestarted, daysLabel, isBackdated, taskDays } from '@shared/days.ts';
+import { daysLabel, frozenDays, isBackdated, pausedDays, taskDays } from '@shared/days.ts';
 import { shameText } from '@shared/shame.ts';
 import { useApp } from '../lib/app';
 import { fmtDay, fmtMoment } from '../lib/format';
@@ -50,10 +50,11 @@ export function TaskDetail({ id, onClose }: { id: number; onClose: () => void })
                 <dt className="text-muted">العداد</dt>
                 <dd className="font-bold">
                   {daysLabel(taskDays(task))} · {shameText(taskDays(task))}
-                  {task.status === 'needs_info' && ` · على ${name(task.created_by)} لين يرد بالتوضيح`}
+                  {task.status === 'needs_info' &&
+                    ` · على ${name(task.created_by)} لين يرد بالتوضيح · عدّاد ${name(task.assignee)} واقف عند ${daysLabel(frozenDays(task))}`}
                   {isBackdated(task) && ' · 📅 تاريخ معدّل'}
-                  {clockRestarted(task) && task.status !== 'needs_info' && (
-                    <span className="num"> · 🔄 العد من جديد من {fmtDay(task.clock_started_at)}</span>
+                  {pausedDays(task) > 0 && task.status !== 'needs_info' && (
+                    <span className="num"> · ⏸️ توقّف {daysLabel(pausedDays(task))} للتوضيح</span>
                   )}
                 </dd>
               </div>

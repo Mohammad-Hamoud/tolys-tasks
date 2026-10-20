@@ -1,11 +1,32 @@
 import { useState } from 'react';
-import { clockRestarted, daysLabel, daysUnit, isBackdated, taskDays } from '@shared/days.ts';
+import { daysLabel, daysUnit, frozenDays, isBackdated, pausedDays, taskDays } from '@shared/days.ts';
 import { api } from '../lib/supabase';
 import { useApp } from '../lib/app';
 import { fmtDay, fmtMoment } from '../lib/format';
 import { navigate } from '../lib/router';
-import type { Task } from '../lib/types';
+import type { Task, TaskEvent } from '../lib/types';
 import { Button, ShameBadge, Sheet, useToast } from './ui';
+
+/** Questions and answers on a task, oldest first. */
+function infoThread(events: TaskEvent[], taskId: number) {
+  return events
+    .filter((e) => e.task_id === taskId && (e.kind === 'info_requested' || e.kind === 'info_provided'))
+    .sort((a, b) => a.id - b.id);
+}
+
+function Thread({ items }: { items: TaskEvent[] }) {
+  const { name } = useApp();
+  if (!items.length) return null;
+  return (
+    <ol className="space-y-1.5 rounded-xl bg-surface-2 p-3 text-[14px]">
+      {items.map((e) => (
+        <li key={e.id}>
+          <span aria-hidden>{e.kind === 'info_requested' ? '❓' : '↩️'}</span> <span className="font-bold">{name(e.actor)}:</span> «{e.note}»
+        </li>
+      ))}
+    </ol>
+  );
+}
 
 type AskKind = 'reject' | 'archive' | 'info' | 'answer';
 type Pending = { kind: AskKind; task: Task } | null;
@@ -19,7 +40,7 @@ const ASK: Record<AskKind, { title: string; submit: string; placeholder: string;
 
 /** Action buttons only appear when the database would allow them. The DB still checks. */
 export function useTaskActions() {
-  const { reload, me, name } = useApp();
+  const { reload, me, name, events, profiles, g } = useApp();
   const toast = useToast();
   const [busy, setBusy] = useState<string | null>(null);
   const [ask, setAsk] = useState<Pending>(null);
@@ -56,6 +77,11 @@ export function useTaskActions() {
     setAsk({ kind, task });
   }
 
+  const onThem = (t: Task) => {
+    const p = profiles.find((x) => x.id === t.created_by);
+    return p ? g(p, 'عليه', 'عليها') : 'عليه';
+  };
+
   function hint(kind: AskKind, t: Task): string {
     switch (kind) {
       case 'reject':
@@ -63,9 +89,9 @@ export function useTaskActions() {
       case 'archive':
         return ' — تنتقل للأرشيف مع السجل، وما ينحذف شي نهائياً.';
       case 'info':
-        return ` — ترجع لـ${name(t.created_by)} والعداد يمشي على ${name(t.created_by)} لين يرد، وما ينحسب عليك تأخير. بعد الرد يبدأ عدّك من جديد.`;
+        return ` — ترجع لـ${name(t.created_by)} والعداد يمشي ${onThem(t)} لين يرد. عدّك يتجمّد عند ${daysLabel(taskDays(t))} ويكمّل بعد الرد.`;
       case 'answer':
-        return ` — ترجع لـ${name(t.assignee)} ويبدأ العد من جديد من اليوم.`;
+        return ` — ترجع لـ${name(t.assignee)} ويكمّل عدّه من حيث وقف (${daysLabel(frozenDays(t))}).`;
     }
   }
 
@@ -84,17 +110,13 @@ export function useTaskActions() {
             if (kind === 'reject') run(`reject-${task.id}`, () => api.rejectDone(task.id, text || null), 'رُفض ❌ والعداد رجع يشتغل');
             else if (kind === 'archive') run(`archive-${task.id}`, () => api.archiveTask(task.id, text || null), 'انحذفت (وتقدر ترجعها من الأرشيف)');
             else if (kind === 'info') run(`info-${task.id}`, () => api.requestInfo(task.id, text), `الكورة في ملعب ${name(task.created_by)} الحين ⚽`);
-            else run(`answer-${task.id}`, () => api.provideInfo(task.id, text), `رجعت لـ${name(task.assignee)} والعداد بدأ من جديد ↩️`);
+            else run(`answer-${task.id}`, () => api.provideInfo(task.id, text), `رجعت لـ${name(task.assignee)} والعداد كمّل من حيث وقف ↩️`);
           }}
         >
           <p className="text-[15px] text-muted">
             «{ask.task.title}»{hint(ask.kind, ask.task)}
           </p>
-          {ask.kind === 'answer' && ask.task.info_question && (
-            <p className="rounded-xl bg-surface-2 p-3 text-[15px]">
-              ❓ {name(ask.task.assignee)}: «{ask.task.info_question}»
-            </p>
-          )}
+          {(ask.kind === 'answer' || ask.kind === 'info') && <Thread items={infoThread(events, ask.task.id)} />}
           <textarea
             value={reason}
             onChange={(e) => setReason(e.target.value)}
@@ -122,13 +144,15 @@ export function useTaskActions() {
 }
 
 export function TaskCard({ task, actions }: { task: Task; actions: ReturnType<typeof useTaskActions>['actions'] }) {
-  const { me, isAdmin, name } = useApp();
+  const { me, isAdmin, name, events } = useApp();
   const days = taskDays(task);
   const mine = task.assignee === me.id;
   const iAsked = task.created_by === me.id;
   const waiting = task.status === 'needs_info';
   const backdated = isBackdated(task);
-  const restarted = clockRestarted(task);
+  const paused = pausedDays(task);
+  const thread = infoThread(events, task.id);
+  const lastAnswer = !waiting && task.status !== 'done' && thread.at(-1)?.kind === 'info_provided' ? thread.at(-1) : undefined;
   const b = actions.busy;
   const hasActions = isAdmin || (mine && task.status === 'open') || (iAsked && waiting);
 
@@ -147,14 +171,19 @@ export function TaskCard({ task, actions }: { task: Task; actions: ReturnType<ty
           <div className="mt-2 flex flex-wrap items-center gap-1.5">
             <ShameBadge days={days} />
             {backdated && <span className="rounded-full bg-surface-2 px-2.5 py-0.5 text-[13px] font-bold text-muted">📅 تاريخ معدّل</span>}
-            {restarted && task.status !== 'needs_info' && (
+            {paused > 0 && !waiting && (
               <span className="rounded-full bg-surface-2 px-2.5 py-0.5 text-[13px] font-bold text-muted">
-                🔄 العد من جديد <span className="num">{fmtDay(task.clock_started_at)}</span>
+                ⏸️ توقّف <span className="num">{daysLabel(paused)}</span> للتوضيح
               </span>
             )}
             {waiting && (
               <span className="rounded-full bg-brand-soft px-2.5 py-0.5 text-[13px] font-bold text-brand">
                 ❓ بانتظار توضيح من {name(task.created_by)}
+              </span>
+            )}
+            {waiting && (
+              <span className="rounded-full bg-surface-2 px-2.5 py-0.5 text-[13px] font-bold text-muted">
+                ⏸️ عدّاد {name(task.assignee)} واقف عند <span className="num">{daysLabel(frozenDays(task))}</span>
               </span>
             )}
             {task.status === 'pending' && (
@@ -166,10 +195,15 @@ export function TaskCard({ task, actions }: { task: Task; actions: ReturnType<ty
               </span>
             )}
           </div>
-          {waiting && task.info_question && (
-            <p className="mt-2 rounded-xl bg-surface-2 px-3 py-2 text-[14px]">
-              <span className="font-bold">{name(task.assignee)}:</span> «{task.info_question}»
-            </p>
+          {waiting && (
+            <div className="mt-2">
+              <Thread items={thread.slice(-1)} />
+            </div>
+          )}
+          {lastAnswer && (
+            <div className="mt-2">
+              <Thread items={thread.slice(-2)} />
+            </div>
           )}
         </button>
         <div className="shrink-0 text-center" aria-label={`عدد الأيام: ${daysLabel(days)}`}>
@@ -212,7 +246,7 @@ export function TaskCard({ task, actions }: { task: Task; actions: ReturnType<ty
           {/* Either person: bounce their own open task back for more info. */}
           {mine && task.status === 'open' && (
             <Button variant="secondary" busy={b === `info-${task.id}`} onClick={() => actions.askInfo(task)}>
-              أحتاج توضيح ❓
+              {lastAnswer ? 'توضيح أكثر ❓' : 'أحتاج توضيح ❓'}
             </Button>
           )}
           {isAdmin && (

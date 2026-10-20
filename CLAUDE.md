@@ -33,8 +33,8 @@ Either user can add a task, and the task is assigned to the other person automat
    - wife's tasks: completion moment = `done_claimed_at`, and it counts only after Mohammad approves
    - rejection clears `done_claimed_at`, and counting continues from `requested_at`
    - shame level = `floor(days / 5)`
-   - the assignee's clock starts at `clock_started_at` (= `requested_at`, or the day an info request was answered: "يعد من جديد")
-   - `needs_info`: the ball (`task_holder`) is with the requester and days count from `info_requested_at` against them, not the assignee
+   - the assignee's clock starts at `clock_started_at` (= `requested_at` + every day spent waiting for info), so info requests FREEZE it, never reset it
+   - `needs_info`: the ball (`task_holder`) is with the requester and days count from `info_requested_at` against them; the assignee's count is frozen. Any number of rounds is allowed
    - "📅 تاريخ معدّل" tag shows when `requested_at::date <> created_at::date`
 5. **No deadlines, no priorities.** Do not add them.
 6. Only two users exist. Do not build sign-up flows, teams or roles beyond these two.
