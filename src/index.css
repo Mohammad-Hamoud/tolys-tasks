@@ -124,3 +124,11 @@ textarea {
     animation: none;
   }
 }
+
+/* Netlify injects a "Powered by Netlify" badge (fixed, bottom corner) on free-plan projects. It
+   covers the bottom nav. The real switch is Project configuration → General → Powered by Netlify
+   badge; this is the fallback so the app stays usable either way. */
+#nl-badge-frame,
+#nl-hud-frame {
+  display: none !important;
+}
